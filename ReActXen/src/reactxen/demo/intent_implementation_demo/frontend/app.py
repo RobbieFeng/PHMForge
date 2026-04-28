@@ -128,14 +128,13 @@ def paper_results_to_df(paper_data: dict) -> pd.DataFrame:
                 {
                     "framework": entry["framework"],
                     "model": entry["model"],
-                    "agent_type": entry.get("agent_type", "single_agent"),
                     "category": category,
                     "accuracy": scores["accuracy"],
                     "completed": scores["completed"],
                     "total": scores["total"],
                     "overall_score": entry.get("overall_score", 0),
                     "label": f"{entry['framework']} + {entry['model']}",
-                    "config": f"{entry['framework']} + {entry['model']} ({entry.get('agent_type', 'single').replace('_', ' ')})",
+                    "config": f"{entry['framework']} + {entry['model']}",
                 }
             )
     return pd.DataFrame(rows)
@@ -196,12 +195,6 @@ with st.sidebar:
         default=all_datasets,
     )
 
-    agent_type_filter = st.radio(
-        "Agent Type (Paper Results)",
-        ["All", "Single Agent", "Multi Agent"],
-        horizontal=True,
-    )
-
     st.divider()
     st.markdown(
         f"**{len(scenarios)}** scenarios loaded  \n"
@@ -220,10 +213,6 @@ else:
 
 if not paper_df.empty:
     filtered_paper = paper_df[paper_df["category"].isin(selected_categories)]
-    if agent_type_filter == "Single Agent":
-        filtered_paper = filtered_paper[filtered_paper["agent_type"] == "single_agent"]
-    elif agent_type_filter == "Multi Agent":
-        filtered_paper = filtered_paper[filtered_paper["agent_type"] == "multi_agent"]
 else:
     filtered_paper = pd.DataFrame()
 
@@ -482,7 +471,6 @@ with tab3:
                 overall_score=("overall_score", "first"),
                 framework=("framework", "first"),
                 model=("model", "first"),
-                agent_type=("agent_type", "first"),
             )
             .sort_values("overall_score", ascending=False)
             .reset_index()
@@ -492,9 +480,8 @@ with tab3:
             overall,
             x="config",
             y="overall_score",
-            color="agent_type",
+            color="framework",
             text=overall["overall_score"].apply(lambda x: f"{x:.0%}"),
-            color_discrete_map={"single_agent": "#42A5F5", "multi_agent": "#EF5350"},
         )
         fig_rank.update_layout(
             height=400,
@@ -504,37 +491,6 @@ with tab3:
             yaxis=dict(range=[0, 1]),
         )
         st.plotly_chart(fig_rank, use_container_width=True)
-
-        # Single vs Multi agent comparison
-        st.subheader("Single Agent vs Multi Agent")
-        agent_comparison = (
-            filtered_paper.groupby(["agent_type", "category"])
-            .agg(
-                avg_accuracy=("accuracy", "mean"),
-            )
-            .reset_index()
-        )
-
-        if len(agent_comparison["agent_type"].unique()) > 1:
-            fig_agent = px.bar(
-                agent_comparison,
-                x="category",
-                y="avg_accuracy",
-                color="agent_type",
-                barmode="group",
-                text=agent_comparison["avg_accuracy"].apply(lambda x: f"{x:.0%}"),
-                color_discrete_map={
-                    "single_agent": "#42A5F5",
-                    "multi_agent": "#EF5350",
-                },
-            )
-            fig_agent.update_layout(
-                height=400,
-                xaxis_title="",
-                yaxis_title="Avg Accuracy",
-                yaxis=dict(range=[0, 1]),
-            )
-            st.plotly_chart(fig_agent, use_container_width=True)
 
     else:
         st.info("No benchmark results match the current filters.")
@@ -865,7 +821,6 @@ with tab6:
                     "category": r.get("classification_type", "Unknown"),
                     "dataset": r.get("dataset", ""),
                     "status": r.get("status", "unknown"),
-                    "agent_type": r.get("agent_type", "unknown"),
                     "execution_time": r.get("execution_time", 0),
                     "source_file": r.get("_source_file", ""),
                 }
@@ -923,13 +878,10 @@ with tab6:
                 fig_time = px.histogram(
                     time_data,
                     x="execution_time",
-                    color="agent_type",
+                    color="category",
                     nbins=15,
                     labels={"execution_time": "Execution Time (s)"},
-                    color_discrete_map={
-                        "single_agent": "#42A5F5",
-                        "multi_agent": "#EF5350",
-                    },
+                    color_discrete_map=CATEGORY_COLORS,
                 )
                 fig_time.update_layout(height=300)
                 st.plotly_chart(fig_time, use_container_width=True)
@@ -949,11 +901,6 @@ with tab6:
                         "Scenarios": len(sf_df),
                         "Completed": len(sf_df[sf_df["status"] == "completed"]),
                         "Failed": len(sf_df[sf_df["status"] == "failed"]),
-                        "Agent Type": (
-                            sf_df["agent_type"].mode().iloc[0]
-                            if not sf_df["agent_type"].mode().empty
-                            else "unknown"
-                        ),
                         "Avg Time (s)": f"{sf_df['execution_time'].mean():.1f}",
                     }
                 )
@@ -966,8 +913,8 @@ with tab6:
         st.info(
             "No benchmark runs recorded yet. Run benchmarks with the CLI:\n\n"
             "```bash\n"
-            "python single_agent_implementation/run.py --limit 5\n"
-            "python multi_agent_implementation/run.py --limit 5\n"
+            "python benchmark_pass1.py --framework reactxen --model ibm/granite-4-h-small --limit 5\n"
+            "python benchmark_pass1.py --framework react --model meta-llama/llama-3-3-70b-instruct --limit 5\n"
             "```"
         )
 
@@ -1100,13 +1047,11 @@ with tab8:
         selected_traj_key = traj_options[selected_traj_label]
         traj_data = trajectories[selected_traj_key]
 
-        # Agent type and replay speed
+        # Trajectory metadata and replay speed
         col_a, col_b = st.columns(2)
         with col_a:
-            agent_display = (
-                traj_data.get("agent_type", "multi_agent").replace("_", " ").title()
-            )
-            st.markdown(f"**Agent Type:** {agent_display}")
+            framework = traj_data.get("framework", "ReActXen")
+            st.markdown(f"**Framework:** {framework}")
             st.markdown(f"**Total Time:** {traj_data.get('total_time', 0):.1f}s")
         with col_b:
             replay_speed = st.slider(
