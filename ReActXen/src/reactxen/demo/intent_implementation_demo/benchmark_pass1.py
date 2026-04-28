@@ -42,6 +42,25 @@ sys.path.insert(0, str(_DEMO))
 # Runtime patch: add models that are deployed on the user's WatsonX project
 # but missing from the installed reactxen.modelset.
 import reactxen.utils.model_inference as _mi
+
+# Patch openai_count_tokens to never return None (fixes openai/gpt-oss-120b
+# which has no tiktoken encoding). Without this, count_tokens returns None
+# and downstream comparisons to int fail with TypeError.
+_orig_openai_count_tokens = _mi.openai_count_tokens
+def _safe_openai_count_tokens(text, model="o1-preview", is_chat=False):
+    try:
+        n = _orig_openai_count_tokens(text, model, is_chat)
+    except Exception:
+        n = None
+    if n is None:
+        # Fallback: rough heuristic ~4 chars/token
+        if isinstance(text, list):
+            n = sum(len(str(t)) for t in text) // 4
+        else:
+            n = max(1, len(str(text)) // 4)
+    return n
+_mi.openai_count_tokens = _safe_openai_count_tokens
+
 _EXTRA_MODELS = [
     "mistralai/mistral-medium-2505",
     "mistralai/mistral-small-3-1-24b-instruct-2503",
