@@ -48,9 +48,13 @@ CAT_TOTAL = {
 
 
 def load_runs() -> list[dict]:
-    """Load all per-config JSONs."""
+    """Load all per-config JSONs (excludes pass-all-3 reruns)."""
     runs = []
     for f in sorted(_RESULTS_DIR.glob("*.json")):
+        # Skip rerun files (_run2.json, _run3.json) — these are aggregated
+        # into the run-1 JSON's summary by run_pass3.aggregate_pass3()
+        if "_run2.json" in f.name or "_run3.json" in f.name:
+            continue
         try:
             with open(f) as fp:
                 d = json.load(fp)

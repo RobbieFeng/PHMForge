@@ -1,0 +1,29 @@
+\begin{table*}[t]
+\caption{Framework-and-model Pass@1 across PHM task categories on the PHMForge benchmark. \textbf{Pass@1}: mean success rate (n=25 scenarios; stratified subset preserving the 5 task categories). \textbf{Pass-all-3}: fraction of scenarios solved on \emph{all} three runs, reported only for the strongest configuration. ``---'' indicates Pass-all-3 not measured for non-winning configurations to bound compute cost.}
+\label{tab:framework_performance}
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lccccccc@{}}
+\toprule
+\textbf{Framework + Model} & \multicolumn{2}{c}{\textbf{Overall}} & \textbf{RUL} & \textbf{Fault} & \textbf{Health} & \textbf{Cost} & \textbf{Safety} \\
+\cmidrule(lr){2-3}
+& Pass@1 & Pass-all-3 & (15) & (15) & (30) & (5) & (10) \\
+\midrule
+\rowcolor{highlight}
+\textbf{ReAct + Llama 4 Maverick} & \textbf{80.0\%} & 60.0\% & 60.0\% & 100.0\% & 80.0\% & 50.0\% & 100.0\% \\
+ReAct + Mistral Medium 2505 & 64.0\% & --- & 0.0\% & 40.0\% & 90.0\% & 100.0\% & 100.0\% \\
+ReAct + GPT-OSS 120B & 56.0\% & --- & 0.0\% & 100.0\% & 50.0\% & 50.0\% & 100.0\% \\
+ReAct + Granite 4-H Small & 44.0\% & --- & 20.0\% & 40.0\% & 60.0\% & 50.0\% & 33.3\% \\
+ReAct + Mistral Small 3.1 24B & 44.0\% & --- & 40.0\% & 60.0\% & 30.0\% & 50.0\% & 66.7\% \\
+ReAct + Llama 3.3 70B & 36.0\% & --- & 20.0\% & 20.0\% & 20.0\% & 100.0\% & 100.0\% \\
+\midrule
+ReActXen + GPT-OSS 120B & 68.0\% & --- & 20.0\% & 100.0\% & 90.0\% & 50.0\% & 33.3\% \\
+ReActXen + Llama 4 Maverick & 63.6\% & --- & 20.0\% & 100.0\% & 100.0\% & --- & --- \\
+ReActXen + Granite 4-H Small & 48.0\% & --- & 20.0\% & 0.0\% & 60.0\% & 100.0\% & 100.0\% \\
+ReActXen + Mistral Medium 2505 & 48.0\% & --- & 20.0\% & 40.0\% & 50.0\% & 100.0\% & 66.7\% \\
+ReActXen + Mistral Small 3.1 24B & 48.0\% & --- & 40.0\% & 40.0\% & 30.0\% & 100.0\% & 100.0\% \\
+ReActXen + Llama 3.3 70B & 9.1\% & --- & 0.0\% & 20.0\% & --- & 0.0\% & --- \\
+\bottomrule
+\end{tabular}
+\end{table*}
