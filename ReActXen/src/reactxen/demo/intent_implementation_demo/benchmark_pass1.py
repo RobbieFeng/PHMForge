@@ -61,6 +61,47 @@ def _safe_openai_count_tokens(text, model="o1-preview", is_chat=False):
     return n
 _mi.openai_count_tokens = _safe_openai_count_tokens
 
+# Patch watsonx_llm to handle generate() exceptions properly.
+# UPSTREAM BUG (model_inference.py line 182-188): if model.generate() raises,
+# generated_response is never assigned, then the unconditional `return
+# generated_response["results"][0]` raises UnboundLocalError. This burns
+# compute (some failures took 30+ minutes before the eventual crash).
+# Our patch returns a well-formed empty-response dict on any LLM exception,
+# matching the schema downstream code expects.
+_orig_watsonx_llm = _mi.watsonx_llm
+def _safe_watsonx_llm(prompt, *args, **kwargs):
+    try:
+        result = _orig_watsonx_llm(prompt, *args, **kwargs)
+        # If the underlying function still UnboundLocalErrors before patching,
+        # we'd never reach here — but if it returns None/garbage, normalize it.
+        if result is None or not isinstance(result, dict):
+            return _empty_llm_response("Empty/null response from watsonx_llm")
+        # Ensure required keys exist to prevent downstream KeyErrors
+        result.setdefault("generated_text", "")
+        result.setdefault("input_token_count", 0)
+        result.setdefault("generated_token_count", 0)
+        return result
+    except Exception as e:
+        return _empty_llm_response(f"watsonx_llm crashed: {type(e).__name__}: {e}")
+
+def _empty_llm_response(error_msg: str) -> dict:
+    """Well-formed empty response schema matching reactxen's expectations."""
+    return {
+        "generated_text": "",
+        "input_token_count": 0,
+        "generated_token_count": 0,
+        "promptTokens": 0,
+        "completionTokens": 0,
+        "reasoning_token_count": 0,
+        "thinking_text": "",
+        "finish_reason": "error",
+        "error": error_msg,
+        "controller_action": "ABORT_STEP",
+        "results": [{"generated_text": "", "input_token_count": 0,
+                     "generated_token_count": 0, "stop_reason": "error"}],
+    }
+_mi.watsonx_llm = _safe_watsonx_llm
+
 _EXTRA_MODELS = [
     "mistralai/mistral-medium-2505",
     "mistralai/mistral-small-3-1-24b-instruct-2503",
@@ -122,9 +163,15 @@ MODEL_NAME_TO_ID = {
 
 FRAMEWORK_CONFIGS = {
     # ReAct: single pass, no reflection
-    "react": {"num_reflect_iteration": 1, "max_steps": 8},
+    "react": {"num_reflect_iteration": 1, "max_steps": 8,
+              "max_execution_time": 480},  # 8 min per scenario
     # ReActXen: with reflection retries
-    "reactxen": {"num_reflect_iteration": 3, "max_steps": 8},
+    "reactxen": {"num_reflect_iteration": 3, "max_steps": 8,
+                 "max_execution_time": 480},
+    # ReActXen-lite: reduced reflection budget for high-latency backbones
+    # (e.g., Llama-3.3-70B). Bounds runtime without disabling reflection.
+    "reactxen_lite": {"num_reflect_iteration": 2, "max_steps": 6,
+                      "max_execution_time": 360},
 }
 
 

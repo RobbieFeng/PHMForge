@@ -46,6 +46,41 @@ CAT_TOTAL = {
     "Safety/Policy Evaluation": 10,
 }
 
+# Claude Code rows are evaluated manually on the FULL n=75 benchmark
+# (the user runs Claude Code interactively per scenario; not API-callable).
+# Pulled from results/paper_results.json. We surface them as a separate
+# "Claude Code (manual, n=75)" group in the table.
+CLAUDE_CODE_MANUAL = [
+    {
+        "framework": "Claude Code",
+        "model_display": "Sonnet 4.5",
+        "n_scenarios": 75,
+        "overall_pass1": 0.65,
+        "by_category_pass1": {
+            "RUL Prediction": 0.73,
+            "Fault Classification": 0.67,
+            "Engine Health Analysis": 0.57,
+            "Cost-Benefit Analysis": 0.80,
+            "Safety/Policy Evaluation": 0.70,
+        },
+        "evaluation_mode": "manual",
+    },
+    {
+        "framework": "Claude Code",
+        "model_display": "Opus 4.6",
+        "n_scenarios": 75,
+        "overall_pass1": 0.81,
+        "by_category_pass1": {
+            "RUL Prediction": 0.87,
+            "Fault Classification": 0.80,
+            "Engine Health Analysis": 0.70,
+            "Cost-Benefit Analysis": 1.00,
+            "Safety/Policy Evaluation": 0.90,
+        },
+        "evaluation_mode": "manual",
+    },
+]
+
 
 def load_runs() -> list[dict]:
     """Load all per-config JSONs (excludes pass-all-3 reruns)."""
@@ -82,7 +117,8 @@ def by_category(summary: dict) -> dict[str, float | None]:
     return out
 
 
-def build_latex_table(runs: list[dict], pass3_winner: str | None = None) -> str:
+def build_latex_table(runs: list[dict], pass3_winner: str | None = None,
+                      include_claude_code: bool = True) -> str:
     """Emit the LaTeX framework_performance table."""
     rows = []
     # Sort: framework asc, then overall pass1 desc
@@ -128,6 +164,18 @@ def build_latex_table(runs: list[dict], pass3_winner: str | None = None) -> str:
             line = "\\rowcolor{highlight}\n" + line
         rows.append(line)
 
+    # Claude Code (manual, n=75) — separate section at the bottom
+    if include_claude_code:
+        rows.append("\\midrule")
+        cc_sorted = sorted(CLAUDE_CODE_MANUAL,
+                           key=lambda r: -r["overall_pass1"])
+        for entry in cc_sorted:
+            cat_strs = [fmt_pct(entry["by_category_pass1"].get(c)) for c in CATEGORIES]
+            line = (f"{entry['framework']} + {entry['model_display']}$^{{*}}$ & "
+                    f"{fmt_pct(entry['overall_pass1'])} & --- & "
+                    + " & ".join(cat_strs) + " \\\\")
+            rows.append(line)
+
     body = "\n".join(rows)
     # n_total per category may be a stratified subset — annotate this
     n_actual = max((r["summary"].get("total_scenarios", 0) for r in runs), default=0)
@@ -135,12 +183,16 @@ def build_latex_table(runs: list[dict], pass3_winner: str | None = None) -> str:
     table = (
         "\\begin{table*}[t]\n"
         "\\caption{Framework-and-model Pass@1 across PHM task categories on the "
-        f"PHMForge benchmark. \\textbf{{Pass@1}}: mean success rate (n={n_actual} "
-        "scenarios; stratified subset preserving the 5 task categories). "
-        "\\textbf{Pass-all-3}: fraction of scenarios solved on \\emph{all} three "
-        "runs, reported only for the strongest configuration. ``---'' indicates "
-        "Pass-all-3 not measured for non-winning configurations to bound compute "
-        "cost.}\n"
+        f"PHMForge benchmark. \\textbf{{Pass@1}}: mean success rate. ReAct and "
+        f"ReActXen rows are evaluated automatically on a stratified subset of "
+        f"n={n_actual} scenarios (5 RUL + 5 Fault + 10 Health + 2 Cost + 3 "
+        f"Safety) preserving all 5 task categories. Claude Code rows ($^{{*}}$) "
+        f"are evaluated \\emph{{manually}} on the full n=75 benchmark; Claude "
+        f"Code is an interactive CLI tool and is not API-callable from the "
+        f"automated harness. \\textbf{{Pass-all-3}}: fraction of scenarios "
+        f"solved on \\emph{{all}} three runs, reported only for the strongest "
+        f"automated configuration. ``---'' indicates Pass-all-3 not measured "
+        f"for non-winning configurations to bound compute cost.}}\n"
         "\\label{tab:framework_performance}\n"
         "\\centering\n\\small\n\\setlength{\\tabcolsep}{4pt}\n"
         "\\begin{tabular}{@{}lccccccc@{}}\n"
