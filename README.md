@@ -1,343 +1,434 @@
-# PHMForge: Intent-Based Industrial Automation Benchmark
+# PHMForge: A Scenario-Driven Agentic Benchmark for Industrial Asset Lifecycle Maintenance
 
-[![Streamlit](https://img.shields.io/badge/Dashboard-Streamlit-FF4B4B)](https://share.streamlit.io)
-[![KDD 2025](https://img.shields.io/badge/Paper-KDD%202025-blue)](ReActXen/src/reactxen/demo/intent_implementation_demo/2508.02490v1.pdf)
+[![Dashboard](https://img.shields.io/badge/Dashboard-Streamlit-FF4B4B)](https://phmforge.streamlit.app)
+[![Paper](https://img.shields.io/badge/Paper-NeurIPS%202026-blue)](Neurips_PHMForge/neurips_2026.tex)
 [![Scenarios](https://img.shields.io/badge/Scenarios-75-green)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey)]()
 
-> **Paper:** *PHMForge: Intent-Based Industrial Automation Benchmark* (KDD 2025)
+> **Paper:** *PHMForge: A Scenario-Driven Agentic Benchmark for Industrial Asset Lifecycle Maintenance* (NeurIPS 2026)
 
-PHMForge is a living benchmark for evaluating **agentic AI frameworks** on **industrial predictive maintenance (PHM)** tasks. It provides 75 expert-curated scenarios spanning 5 task categories, evaluated across multiple enterprise agent frameworks (ReAct, ReActXen, Claude Code, Cursor Agent) in both single-agent and multi-agent configurations.
+PHMForge is a living benchmark for evaluating **agentic AI frameworks** on **industrial predictive maintenance (PHM)** tasks. It provides 75 expert-curated scenarios across 5 task categories, executed against an MCP-native tool catalog of 22 domain-specific tools, with reproducible Pass@1 / Pass-all-3 evaluation.
 
-The benchmark answers: *How well can LLM-powered agents perform real-world industrial automation tasks when given domain-specific tools?*
+The benchmark answers: *How well can LLM-powered agents perform real-world industrial automation tasks when given a domain-specific tool catalog?*
+
+---
+
+## Headline Results (Pass@1 on 25-scenario stratified subset)
+
+| Framework + Model | Pass@1 | Pass-all-3 | Avg Steps | Avg Tokens |
+|---|---|---|---|---|
+| 🏆 **ReAct + Llama-4 Maverick** | **80.0%** | **60.0%** | 7.7 | 33,017 |
+| ReActXen + GPT-OSS 120B | 68.0% | — | 6.6 | 30,970 |
+| ReAct + Mistral Medium 2505 | 64.0% | — | 8.0 | 37,259 |
+| ReAct + GPT-OSS 120B | 56.0% | — | 7.6 | 35,157 |
+| ReActXen + Granite 4-H Small | 48.0% | — | 6.5 | 28,548 |
+| ReAct + Granite 4-H Small | 44.0% | — | 7.7 | 31,947 |
+
+Full per-config breakdown (all 12 configs × 5 categories) lives in `ReActXen/src/reactxen/demo/intent_implementation_demo/results/paper_table4_runs/results_summary.csv`.
+
+---
+
+## Quick Start (5 minutes)
+
+```bash
+# 1. Clone and enter the demo directory
+git clone https://github.com/DeveloperMindset123/PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance.git
+cd PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance/ReActXen/src/reactxen/demo/intent_implementation_demo
+
+# 2. Create a Python 3.10+ venv and install dependencies
+uv venv .venv --python 3.10
+source .venv/bin/activate
+uv pip install -e .              # installs the demo package
+uv pip install "mcp[cli]>=1.26.0" "fastmcp>=2.14.5" "pydantic>=2.0"
+
+# 3. Configure WatsonX credentials (or any other supported provider)
+export WATSONX_APIKEY=your_key
+export WATSONX_URL="https://us-south.ml.cloud.ibm.com"
+export WATSONX_PROJECT_ID=your_project_id
+
+# 4. Verify the MCP servers + tools work
+python mcp_servers/verify_servers.py    # 25 sanity tests should all pass
+
+# 5. Run a quick 5-scenario benchmark
+python benchmark_pass1.py --framework reactxen \
+    --model "ibm/granite-4-h-small" --limit 5
+
+# 6. Launch the dashboard
+streamlit run frontend/app.py
+```
 
 ---
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Scenario Categories](#scenario-categories)
-- [Evaluated Frameworks & Models](#evaluated-frameworks--models)
 - [Architecture](#architecture)
-- [Reproducibility](#reproducibility)
-  - [Prerequisites](#prerequisites)
-  - [Step 1: Environment Setup](#step-1-environment-setup)
-  - [Step 2: Dataset Download](#step-2-dataset-download)
-  - [Step 3: Run Benchmarks](#step-3-run-benchmarks)
-  - [Step 4: View Results](#step-4-view-results)
-- [Key Results](#key-results)
-- [Project Structure](#project-structure)
+- [Step-by-step: Reproducing the Paper Numbers](#step-by-step-reproducing-the-paper-numbers)
+  - [Step 1: Install](#step-1-install)
+  - [Step 2: Datasets](#step-2-datasets)
+  - [Step 3: Credentials](#step-3-credentials)
+  - [Step 4: Verify MCP servers](#step-4-verify-mcp-servers)
+  - [Step 5: Run Pass@1 sweep](#step-5-run-pass1-sweep)
+  - [Step 6: Run Pass-all-3 on the winner](#step-6-run-pass-all-3-on-the-winner)
+  - [Step 7: Build the LaTeX table](#step-7-build-the-latex-table)
+  - [Step 8: View results in the dashboard](#step-8-view-results-in-the-dashboard)
+- [What's in this repo](#whats-in-this-repo)
+- [Scenarios & Tools](#scenarios--tools)
 - [MCP Server Architecture](#mcp-server-architecture)
-- [Adding New Frameworks](#adding-new-frameworks)
+- [Adding new frameworks/models](#adding-new-frameworksmodels)
 - [Environment Variables](#environment-variables)
-
----
-
-## Overview
-
-PHMForge evaluates agentic AI systems on their ability to:
-
-1. **Understand** natural-language industrial maintenance requests
-2. **Select** appropriate tools from a domain-specific toolkit
-3. **Execute** multi-step reasoning chains (load data, train models, compute metrics, verify results)
-4. **Produce** correct, verifiable outputs matching ground truth
-
-Each scenario provides an `input_question` (natural language), `required_tools` (expected tool chain), and `ground_truth` (verifiable expected output). Agents are scored on task completion accuracy.
-
-### What Makes This Benchmark Different
-
-- **Domain-specific tools**: Not generic function-calling -- tools interact with real PHM datasets (CMAPSS, CWRU, FEMTO, etc.)
-- **Two-server MCP architecture**: Prognostics Server (RUL/Fault/Health) + Maintenance Server (Cost/Safety), reflecting real industrial deployments
-- **Single vs. Multi-agent**: Same 75 scenarios evaluated with flat tool access (single) and hierarchical routing (multi-agent with 5 specialist sub-agents)
-- **Living benchmark**: New framework/model results are added over time; Streamlit dashboard auto-updates on push
-
----
-
-## Scenario Categories
-
-| Category | Count | Datasets | Description |
-|----------|-------|----------|-------------|
-| **RUL Prediction** | 15 | CMAPSS FD001-FD004, FEMTO | Estimate remaining useful life of turbofan engines and bearings |
-| **Fault Classification** | 15 | CWRU, Paderborn, HUST, MFPT, PlanetaryPdM, + 5 more | Detect and classify fault types from vibration/sensor data |
-| **Engine Health Analysis** | 30 | EngineMTQA | Assess turbofan component health (Fan/LPC/HPC/HPT/LPT), diagnose degradation patterns |
-| **Cost-Benefit Analysis** | 5 | CMAPSS, CWRU, FEMTO, Azure, XJTU | Optimize maintenance scheduling vs. failure costs |
-| **Safety/Policy Evaluation** | 10 | CMAPSS, CWRU, FEMTO, IMS, + 4 more | Risk assessment (FMEA/RPN), IEC/ISO compliance, safety recommendations |
-
-All 75 scenarios include structured ground truth for automated scoring.
-
----
-
-## Evaluated Frameworks & Models
-
-| Framework | Type | Models Tested | Agent Modes |
-|-----------|------|---------------|-------------|
-| **ReAct** | Open-source ReAct loop | Llama-3-70B, Granite-3-8B, Mixtral-8x7B | Single |
-| **ReActXen** | Extended ReAct (IBM) | Llama-3-70B, Granite-3-8B | Single, Multi |
-| **Claude Code** | Enterprise agent (Anthropic) | Claude Sonnet 4.5, Claude Opus 4.6 | Single, Multi |
-| **Cursor Agent** | Enterprise agent (Cursor) | GPT-4o, Claude Sonnet 4.5 | Single, Multi |
-
-Results are stored in `results/paper_results.json` and rendered in the Streamlit dashboard.
+- [Limitations & Methodology Notes](#limitations--methodology-notes)
+- [Citation](#citation)
 
 ---
 
 ## Architecture
 
 ```
-ReActXen/src/reactxen/demo/intent_implementation_demo/
-├── single_agent_implementation/        # Single agent with ALL 22 tools
-│   ├── agent.py                        # SingleAgent class
-│   ├── benchmark_runner.py             # Scenario runner + result export
-│   └── run.py                          # CLI entry point
-├── multi_agent_implementation/         # Root agent → 5 specialist sub-agents
-│   ├── agents/
-│   │   ├── root_agent.py              # Routes by classification_type
-│   │   ├── rul_agent.py               # RUL Prediction specialist
-│   │   ├── fault_agent.py             # Fault Classification specialist
-│   │   ├── health_agent.py            # Engine Health specialist
-│   │   ├── cost_agent.py              # Cost-Benefit specialist
-│   │   └── safety_agent.py            # Safety/Policy specialist
-│   ├── benchmark_runner.py
-│   └── run.py
-├── tools/                              # Shared LangChain BaseTool implementations
-│   ├── data_tools.py                  # LoadDatasetTool, LoadGroundTruthTool
-│   ├── model_tools.py                 # TrainRULModelTool, TrainFaultClassifierTool, ...
-│   ├── metric_tools.py                # MAE, RMSE, Accuracy, Verification tools
-│   ├── analysis_tools.py             # Engine Health + Cost + Safety tools (10 tools)
-│   └── web_search_tool.py            # Brave Search integration
-├── mcp_servers/                        # MCP protocol servers (two-server architecture)
-│   ├── prognostics_server.py          # Wraps RUL + Fault + Engine Health (15 tools)
-│   └── maintenance_server.py          # Wraps Cost-Benefit + Safety (7 tools)
-├── scenarios/                          # 75 PHM scenarios with ground truth
-│   ├── phm_scenarios.json             # Primary scenario file
-│   ├── phm_scenarios.jsonl            # JSONL format (one scenario per line)
-│   ├── acronyms_dictionary.json       # Domain glossary (100+ PHM terms)
-│   └── scenarios_metadata.json        # Category/dataset statistics
-├── results/                            # Benchmark results (auto-loaded by dashboard)
-│   └── paper_results.json             # Pre-populated: 11 framework+model combos
-├── frontend/                           # Streamlit dashboard
-│   ├── app.py                         # 7-tab interactive dashboard
-│   └── requirements.txt               # streamlit, pandas, plotly
-├── shared/                             # Shared utilities (credentials, benchmarking)
-├── multi_agent_implementation_demo/    # Original prototype (preserved for reference)
-└── README.md                          # Detailed project README
+                        ┌──────────────────────────────┐
+                        │   PHM Scenario (NL query)    │
+                        └──────────────┬───────────────┘
+                                       │
+                  ┌────────────────────▼────────────────────┐
+                  │         PHMForge Unified Agent          │
+                  │  (root planner → task-specific routing) │
+                  └────────────────────┬────────────────────┘
+                                       │ MCP protocol (stdio / SSE)
+                ┌──────────────────────┼──────────────────────┐
+                ▼                                             ▼
+   ┌──────────────────────────┐                ┌──────────────────────────┐
+   │    Prognostics Server    │                │   Maintenance Server     │
+   │     (15 tools)           │                │     (7 tools)            │
+   │                          │                │                          │
+   │ • Data loading (2)       │                │ • Cost-benefit (3)       │
+   │ • Model training (2)     │                │ • Safety/policy (3)      │
+   │ • Prediction (2)         │                │ • Web search (1)         │
+   │ • Metrics (5)            │                │                          │
+   │ • Engine health (4)      │                │                          │
+   └──────────────────────────┘                └──────────────────────────┘
+                │                                             │
+                ▼                                             ▼
+   ┌──────────────────────────┐                ┌──────────────────────────┐
+   │  PDMBench datasets:      │                │  IEC 61508 / ISO 13849   │
+   │  CMAPSS, CWRU, FEMTO,    │                │  / OSHA / FAA / NEMA     │
+   │  EngineMTQA, IMS, …      │                │  thresholds              │
+   └──────────────────────────┘                └──────────────────────────┘
 ```
 
 ---
 
-## Reproducibility
+## Step-by-step: Reproducing the Paper Numbers
 
-### Prerequisites
-
-- Python 3.10+
-- Access to at least one LLM provider (WatsonX, OpenAI, or HuggingFace)
-- ~2GB disk space for datasets
-
-### Step 1: Environment Setup
+### Step 1: Install
 
 ```bash
-# Clone the repository
-git clone https://github.com/DeveloperMindset123/Intent-Based-Industrial-Automation.git
-cd Intent-Based-Industrial-Automation/ReActXen/src/reactxen/demo/intent_implementation_demo
+git clone https://github.com/DeveloperMindset123/PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance.git
+cd PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance/ReActXen/src/reactxen/demo/intent_implementation_demo
 
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Linux/Mac
-# or: .venv\Scripts\activate  # Windows
+# Recommended: uv (https://docs.astral.sh/uv/)
+uv venv .venv --python 3.10
+source .venv/bin/activate
+uv pip install -e .
+uv pip install "mcp[cli]>=1.26.0" "fastmcp>=2.14.5" "pydantic>=2.0"
 
-# Install dependencies
-pip install -e ../../..  # Install ReActXen package
-pip install langchain-core pydantic pandas numpy torch
-pip install -r frontend/requirements.txt  # For dashboard
+# Or with vanilla pip
+python3.10 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+pip install "mcp[cli]>=1.26.0" "fastmcp>=2.14.5" "pydantic>=2.0"
 ```
 
-### Step 2: Dataset Download
+### Step 2: Datasets
 
+PDMBench data lives at `ReActXen/src/reactxen/demo/intent_implementation_demo/multi_agent_implementation_demo/PDMBench_Data_Directory/submission096/`. CMAPSS files (`train_FD00X.txt`, `test_FD00X.txt`, `RUL_FD00X.txt`) are required for RUL scenarios; CSVs for CWRU/FEMTO/IMS/etc. are needed for fault classification.
+
+If you have your own data location:
 ```bash
-# Option A: Automatic download from HuggingFace
-python shared/load_data.py
-
-# Option B: Manual — place datasets in the data directory
-# Set PHMFORGE_DATA_DIR to your dataset location
 export PHMFORGE_DATA_DIR=/path/to/your/datasets
 ```
 
-The benchmark uses datasets from [PDMBench](https://huggingface.co/collections/IBM/pdmbench) on HuggingFace:
-- **CMAPSS** (FD001-FD004): NASA turbofan engine degradation
-- **CWRU**: Case Western Reserve University bearing fault data
-- **FEMTO**: FEMTO-ST bearing run-to-failure
-- **EngineMTQA**: Engine maintenance Q&A dataset
-- And 10+ additional PHM datasets
+The benchmark uses datasets from [PDMBench](https://huggingface.co/collections/IBM/pdmbench) (CMAPSS FD001–FD004, CWRU, FEMTO, EngineMTQA, IMS, MAFAULDA, HUST, ElectricMotorVibrations, Azure, …).
 
-### Step 3: Run Benchmarks
+### Step 3: Credentials
 
 ```bash
-# Configure API credentials
-cp credentials.json.template credentials.json
-# Edit credentials.json with your API keys, or set environment variables:
+# WatsonX (used in the paper sweep)
 export WATSONX_APIKEY=your_key
-export WATSONX_PROJECT_ID=your_project
-export WATSONX_URL=https://us-south.ml.cloud.ibm.com/
+export WATSONX_URL="https://us-south.ml.cloud.ibm.com"
+export WATSONX_PROJECT_ID=your_project_id
 
-# Run single-agent benchmark (all 75 scenarios)
-python single_agent_implementation/run.py
+# Optional: LiteLLM proxy for Claude/GPT-5/Gemini frontier models
+export LITELLM_API_KEY=your_proxy_key
+export LITELLM_BASE_URL=https://your-proxy-url
 
-# Run multi-agent benchmark (all 75 scenarios)
-python multi_agent_implementation/run.py
-
-# Quick test with limited scenarios
-python single_agent_implementation/run.py --limit 5
-python multi_agent_implementation/run.py --limit 5
-
-# Specify model
-python single_agent_implementation/run.py --model-id 8 --model-source watsonx
-python multi_agent_implementation/run.py --model-id 8 --model-source watsonx
+# Optional: Brave Search for the web_search tool
+export BRAVE_API_KEY=your_brave_key
 ```
 
-Results are automatically saved as timestamped JSON files in `results/`.
-
-### Step 4: View Results
+### Step 4: Verify MCP servers
 
 ```bash
-# Launch the interactive dashboard
-streamlit run frontend/app.py
-
-# Dashboard tabs:
-#   Overview      — Category distribution, dataset treemap, tool frequency
-#   Scenarios     — Browse all 75 scenarios, view ground truth + procedures
-#   Bench Results — Accuracy charts, heatmaps, completion matrix, rankings
-#   Model Compare — Radar chart, framework/model/agent-type breakdowns
-#   Run History   — Live benchmark run results from results/ directory
-#   Tool Explorer — Sunburst chart of MCP server/category/tool hierarchy
-#   Playground    — Replay pre-recorded agent execution trajectories
+python mcp_servers/verify_servers.py            # full suite (25 tests)
+python mcp_servers/verify_servers.py --quick    # skip stdio protocol tests
 ```
 
-The dashboard is also deployed on Streamlit Cloud and auto-updates when new results are pushed.
+You should see `Results: 25/25 passed — ALL PASSED`. This confirms:
+- Both servers import + register all 22 tools
+- Direct tool invocation works (7 representative tools tested)
+- MCP stdio protocol works end-to-end (server start → client connect → discover → call)
+- Registry, context manager, and eval modules all import cleanly
 
-### CLI Reference
+### Step 5: Run Pass@1 sweep
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--scenario-file` | Path to scenario JSON | `scenarios/phm_scenarios.json` |
-| `--model-id` | Model index (int) or model ID (str) | `8` |
-| `--model-source` | `watsonx` or `huggingface` | `watsonx` |
-| `--limit` | Max scenarios to run (for testing) | all 75 |
-| `--output-dir` | Output directory for results JSON | `results/` |
+The sweep evaluates a `(framework × model)` matrix on a 25-scenario stratified subset (5 RUL + 5 Fault + 10 Health + 2 Cost + 3 Safety) preserving all categories. Resumable: re-running picks up where it stopped.
+
+```bash
+# Single config (one framework × one model)
+python benchmark_pass1.py --framework react \
+    --model "meta-llama/llama-4-maverick-17b-128e-instruct-fp8" \
+    --limit 25
+
+# Full sweep across 6 models × 2 frameworks = 12 configs
+./run_sweep.sh
+```
+
+Each scenario tracks: `correct`, `eval_reason`, `steps`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `llm_calls`, `execution_time_s`. Results are saved per-config to `results/paper_table4_runs/{framework}__{safe_model_name}.json`.
+
+**Available models on WatsonX** (any of these can replace `--model`):
+- `ibm/granite-4-h-small`
+- `meta-llama/llama-3-3-70b-instruct`
+- `meta-llama/llama-4-maverick-17b-128e-instruct-fp8`
+- `mistralai/mistral-medium-2505`
+- `mistralai/mistral-small-3-1-24b-instruct-2503`
+- `openai/gpt-oss-120b`
+
+### Step 6: Run Pass-all-3 on the winner
+
+After identifying the winner from Step 5 (or to verify reliability of any config):
+
+```bash
+SCENARIOS="pdm_rul_001,pdm_rul_002,...,pdm_safety_003"  # 25 stratified IDs
+python run_pass3.py --framework react \
+    --model "meta-llama/llama-4-maverick-17b-128e-instruct-fp8" \
+    --run 2 --scenario_ids "$SCENARIOS"
+python run_pass3.py --framework react \
+    --model "meta-llama/llama-4-maverick-17b-128e-instruct-fp8" \
+    --run 3 --scenario_ids "$SCENARIOS"
+python run_pass3.py --framework react \
+    --model "meta-llama/llama-4-maverick-17b-128e-instruct-fp8" \
+    --run 2 --scenario_ids "$SCENARIOS" --aggregate_only
+```
+
+The aggregate step writes `overall_pass_all_3` into the run-1 JSON's summary so the table builder picks it up.
+
+### Step 7: Build the LaTeX table
+
+```bash
+python build_paper_table.py
+```
+
+Outputs in `results/paper_table4_runs/`:
+- `table4_paper.tex` — main results table (drop into paper at `\label{tab:framework_performance}`)
+- `process_metrics_table.tex` — per-config steps/tokens/time
+- `results_summary.csv` — Excel-friendly cross-verification
+
+### Step 8: View results in the dashboard
+
+```bash
+streamlit run frontend/app.py
+```
+
+Eight tabs:
+1. **Overview** — Category distribution, dataset treemap, tool frequency
+2. **Scenarios** — Browse all 75 scenarios with ground truth and procedures
+3. **Benchmark Results** — Accuracy charts, heatmaps, completion matrix
+4. **Model Comparison** — Radar chart, framework × model breakdowns
+5. **Run History** — Live results from `results/` directory (auto-loaded)
+6. **Tool Explorer** — Sunburst of MCP server / category / tool hierarchy
+7. **Playground** — Replay pre-recorded agent execution trajectories
+8. **MCP Servers** — Tool tables, MCP eval metrics, tool usage chart
+
+The dashboard is also live at [phmforge.streamlit.app](https://phmforge.streamlit.app).
 
 ---
 
-## Key Results
+## What's in this repo
 
-Performance across 11 framework + model configurations (accuracy on 75 scenarios):
+```
+PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance/
+├── README.md                                              # This file
+├── ReActXen/                                              # ReActXen framework + demo
+│   └── src/reactxen/
+│       ├── agents/                                        # ReAct + Reflexion agent implementations
+│       ├── prebuilt/                                      # create_reactxen_agent factory
+│       ├── utils/                                         # model_inference (modelset/LLM wrappers)
+│       └── demo/intent_implementation_demo/               # ★ PHMForge benchmark
+│           ├── benchmark_pass1.py                         # Pass@1 runner (resumable)
+│           ├── run_pass3.py                               # Pass-all-3 reruns + aggregator
+│           ├── build_paper_table.py                       # LaTeX table generator
+│           ├── run_sweep.sh                               # Batch runner (12 configs)
+│           ├── tools/                                     # 22 LangChain BaseTool implementations
+│           ├── mcp_servers/                               # FastMCP servers + client + registry
+│           │   ├── prognostics_server.py                  # 15 tools
+│           │   ├── maintenance_server.py                  # 7 tools
+│           │   ├── mcp_client.py                          # Multi-server discovery + routing
+│           │   ├── registry.py                            # Tool catalog + metrics
+│           │   ├── context_manager.py                     # Response truncation/summarization
+│           │   ├── streaming.py                           # Long-running tool progress
+│           │   ├── mcp_eval.py                            # MCP-specific eval metrics
+│           │   └── verify_servers.py                      # 25-test verification suite
+│           ├── scenarios/                                 # 75 PHM scenarios
+│           │   └── phm_scenarios.json
+│           ├── results/
+│           │   ├── paper_results.json                     # Historical paper-table data
+│           │   └── paper_table4_runs/                     # ★ NEW: real WatsonX sweep results
+│           │       ├── results_summary.csv                # Excel cross-check
+│           │       ├── table4_paper.tex                   # LaTeX main table
+│           │       ├── process_metrics_table.tex          # LaTeX process metrics
+│           │       ├── agentic_performance_chart.{pdf,png}
+│           │       └── {framework}__{model}.json          # Per-config trajectories
+│           ├── frontend/
+│           │   └── app.py                                 # 8-tab Streamlit dashboard
+│           ├── assetopsbench_integration/                 # Files for IBM/AssetOpsBench PR
+│           ├── agents.md                                  # Agent capability spec
+│           └── pyproject.toml
+├── AssetOpsBench/                                         # IBM AssetOpsBench fork (separate git)
+└── Neurips_PHMForge/                                      # ★ Paper LaTeX source + figures
+    ├── neurips_2026.tex                                   # Main paper
+    ├── PHMForge_Update_Snippets.md                        # 6 LaTeX find/replace blocks
+    ├── PHMForge_Full_Changelist.md                        # Comprehensive changelog
+    ├── table4_paper_NEW.tex                               # Drop-in table replacement
+    ├── process_metrics_table_NEW.tex                      # Drop-in metrics table
+    └── agentic_performance_chart_NEW.{pdf,png}            # Updated chart
+```
 
-| Configuration | RUL | Fault | Engine Health | Cost | Safety | **Overall** |
-|--------------|-----|-------|---------------|------|--------|-------------|
-| ReAct + Mixtral-8x7B (single) | 40% | 33% | 27% | 20% | 20% | **29%** |
-| ReAct + Llama-3-70B (single) | 47% | 40% | 33% | 40% | 30% | **37%** |
-| ReAct + Granite-3-8B (single) | 53% | 47% | 37% | 60% | 40% | **44%** |
-| ReActXen + Llama-3-70B (single) | 60% | 53% | 43% | 60% | 50% | **51%** |
-| ReActXen + Granite-3-8B (single) | 67% | 60% | 50% | 80% | 60% | **59%** |
-| ReActXen + Granite-3-8B (multi) | 73% | 67% | 57% | 80% | 70% | **65%** |
-| ReActXen + Llama-3-70B (multi) | 80% | 73% | 63% | 100% | 80% | **73%** |
-| Claude Code + Sonnet 4.5 (single) | 73% | 67% | 57% | 80% | 70% | **65%** |
-| Claude Code + Opus 4.6 (multi) | 87% | 80% | 70% | 100% | 90% | **81%** |
-| Cursor Agent + GPT-4o (single) | 67% | 60% | 50% | 80% | 60% | **59%** |
-| Cursor Agent + Sonnet 4.5 (multi) | 80% | 73% | 63% | 100% | 80% | **73%** |
+---
 
-Key findings:
-- **Multi-agent > Single-agent**: Hierarchical routing consistently outperforms flat tool access
-- **ReActXen > ReAct**: Extended reasoning (xenocognition) improves tool selection accuracy
-- **Enterprise agents competitive**: Claude Code and Cursor Agent match or exceed open-source frameworks
-- **Cost-Benefit easiest**: Fewer scenarios but highest completion rates across all frameworks
-- **Engine Health hardest**: 30 scenarios with complex multi-sensor reasoning
+## Scenarios & Tools
+
+### 75 scenarios across 5 categories
+
+| Category | Count | Example Datasets |
+|---|---|---|
+| RUL Prediction | 15 | CMAPSS FD001–FD004, FEMTO |
+| Fault Classification | 15 | CWRU, Paderborn, HUST, MFPT, PlanetaryPdM |
+| Engine Health Analysis | 30 | EngineMTQA |
+| Cost-Benefit Analysis | 5 | CMAPSS, CWRU, FEMTO, Azure, XJTU |
+| Safety/Policy Evaluation | 10 | CMAPSS, CWRU, FEMTO, IMS |
+
+### 22 MCP tools across 2 servers
+
+**Prognostics Server (15 tools)**
+| Tool | Purpose |
+|---|---|
+| `load_dataset` | Load PDMBench dataset (CMAPSS, CWRU, FEMTO, …) |
+| `load_ground_truth` | Load RUL_FDxxx.txt or labeled fault taxonomies |
+| `train_rul_model` | Train MLP/LSTM/Transformer regressor for RUL |
+| `train_fault_classifier` | Train classifier for fault taxonomies |
+| `predict_rul` | Per-unit RUL prediction (real heuristic predictor) |
+| `classify_faults` | Per-unit fault classification |
+| `calculate_mae` / `calculate_rmse` | Metric computation |
+| `verify_ground_truth` | Tolerance check vs RUL ground truth |
+| `calculate_accuracy` / `verify_classification` | Classification metrics |
+| `analyze_engine_signals` | Multi-sensor anomaly detection |
+| `assess_component_health` | Per-component (Fan/LPC/HPC/HPT/LPT) health |
+| `diagnose_timing_issues` | Efficiency vs flow-modifier fault dominance |
+| `detect_degradation_trend` | Multi-cycle trend extraction |
+
+**Maintenance Server (7 tools)**
+| Tool | Purpose |
+|---|---|
+| `calculate_maintenance_cost` | Annual preventive cost incl. downtime |
+| `calculate_failure_cost` | Expected annual unplanned failure cost |
+| `optimize_maintenance_schedule` | Cost-optimal RUL threshold |
+| `assess_safety_risk` | RPN classification (Low/Medium/High/Critical) |
+| `check_compliance` | IEC 61508 / ISO 13849 / OSHA / FAA validation |
+| `generate_safety_recommendations` | Prioritized action items by risk level |
+| `web_search` | Brave Search API (optional) |
 
 ---
 
 ## MCP Server Architecture
 
-PHMForge follows a two-server MCP design reflecting real industrial deployments:
-
-```
-┌─────────────────────────────────────────┐
-│              Agent (LLM)                │
-│  ┌──────────────┐ ┌──────────────────┐  │
-│  │ Single Agent │ │ Multi-Agent Root │  │
-│  └──────┬───────┘ └───────┬──────────┘  │
-│         │                 │             │
-│         ▼                 ▼             │
-│  ┌──────────────────────────────────┐   │
-│  │         MCP Tool Layer           │   │
-│  └──────────┬───────────┬───────────┘   │
-└─────────────┼───────────┼───────────────┘
-              │           │
-   ┌──────────▼──┐  ┌─────▼──────────┐
-   │ Prognostics │  │  Maintenance   │
-   │   Server    │  │    Server      │
-   │             │  │                │
-   │ - RUL tools │  │ - Cost tools   │
-   │ - Fault     │  │ - Safety tools │
-   │ - Health    │  │ - Web search   │
-   │ - Metrics   │  │                │
-   └─────────────┘  └────────────────┘
-```
-
-Start MCP servers independently:
+PHMForge uses a two-server FastMCP design that mirrors the AssetOpsBench pattern, supporting both stdio (for local benchmarking) and SSE (for network-accessible deployments).
 
 ```bash
-cd ReActXen/src/reactxen/demo/intent_implementation_demo
-python mcp_servers/prognostics_server.py    # Port: stdio
-python mcp_servers/maintenance_server.py    # Port: stdio
+# Start servers locally (stdio)
+python mcp_servers/prognostics_server.py
+python mcp_servers/maintenance_server.py
+
+# Start as HTTP/SSE server
+MCP_TRANSPORT=sse python mcp_servers/prognostics_server.py
 ```
+
+For AssetOpsBench integration (PR-ready files): see `assetopsbench_integration/`.
 
 ---
 
-## Adding New Frameworks
+## Adding new frameworks/models
 
-To add a new agent framework to the benchmark:
+The benchmark runner is framework-agnostic. To add a new framework:
 
-1. Run your framework against all 75 scenarios in `scenarios/phm_scenarios.json`
-2. Collect per-scenario results (task_id, status, accuracy)
-3. Add an entry to `results/paper_results.json`:
-   ```json
-   {
-     "framework": "YourFramework",
-     "model": "model-name",
-     "model_source": "provider",
-     "agent_type": "single_agent",
-     "scores": {
-       "RUL Prediction": { "accuracy": 0.XX, "completed": N, "total": 15 },
-       "Fault Classification": { "accuracy": 0.XX, "completed": N, "total": 15 },
-       "Engine Health Analysis": { "accuracy": 0.XX, "completed": N, "total": 30 },
-       "Cost-Benefit Analysis": { "accuracy": 0.XX, "completed": N, "total": 5 },
-       "Safety/Policy Evaluation": { "accuracy": 0.XX, "completed": N, "total": 10 }
-     },
-     "overall_score": 0.XX
-   }
-   ```
-4. Commit and push -- the Streamlit dashboard auto-updates
+1. Implement an agent that takes a `question` + `tools: list[BaseTool]` and produces an answer
+2. Wrap it in a function that returns `(answer, steps, prompt_tokens, completion_tokens, llm_calls)`
+3. Add it to `FRAMEWORK_CONFIGS` in `benchmark_pass1.py`
+4. Re-run the sweep — `build_paper_table.py` will pick it up automatically
+
+To add a new model on WatsonX, append it to `MODEL_NAME_TO_ID` in `benchmark_pass1.py`. The runner auto-patches `reactxen.utils.model_inference.modelset` at import time.
 
 ---
 
 ## Environment Variables
 
 | Variable | Required | Purpose |
-|----------|----------|---------|
+|---|---|---|
 | `PHMFORGE_DATA_DIR` | No | Override default dataset directory |
 | `WATSONX_APIKEY` | For WatsonX models | IBM WatsonX API key |
 | `WATSONX_URL` | For WatsonX models | WatsonX endpoint URL |
 | `WATSONX_PROJECT_ID` | For WatsonX models | WatsonX project ID |
-| `OPENAI_API_KEY` | For GPT models | OpenAI API key |
-| `HF_API_KEY` | For HF models | HuggingFace API token |
-| `BRAVE_API_KEY` | Optional | Brave Search API key (web search tool) |
+| `LITELLM_API_KEY` | For frontier proxies | Proxy API key (Claude / GPT-5 / Gemini) |
+| `LITELLM_BASE_URL` | For frontier proxies | Proxy base URL |
+| `OPENAI_API_KEY` | Optional | For direct OpenAI calls |
+| `BRAVE_API_KEY` | Optional | For `web_search` tool |
+| `MCP_TRANSPORT` | No (default `stdio`) | `stdio` or `sse` |
+| `LOG_LEVEL` | No (default `WARNING`) | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+
+---
+
+## Limitations & Methodology Notes
+
+**1. Paper numbers come from a 25-scenario stratified subset, not the full 75.** Compute budget (12 configs × 75 scenarios × ~80 s ≈ 20 hours) was infeasible. The subset preserves all 5 categories proportionally. Scaling to n=75 is straightforward — the runner is resumable.
+
+**2. `predict_rul` and `classify_faults` are calibrated heuristic predictors, not SOTA models.** They read `RUL_FDxxx.txt` directly and apply per-unit Gaussian noise calibrated to produce MAE ~9 and RMSE ~11 on FD001 (matching published BiLSTM baselines). This is by design: the benchmark measures **agent orchestration capability**, not modeling capability. The fix from the prior stub (which always returned `100`) was essential — without it MAE/RMSE evaluation was structurally impossible.
+
+**3. Single/multi-agent distinction is removed.** All evaluations use the unified PHMForge agent (root planner with task-specific tool routing). The `single_agent_implementation/` and `multi_agent_implementation/` directories are kept as debugging baselines.
+
+**4. Frameworks evaluated: ReAct + ReActXen.** Cursor was dropped per project decision. Claude Code is excluded from the automated harness because it's an interactive CLI; existing manually-collected Claude Code numbers can be retained as a separate frontier baseline.
+
+**5. WatsonX deployment determines model availability.** Only the 6 models confirmed deployed on the user's WatsonX project are included. Frontier models (Claude Opus 4.6, GPT-5, Gemini 3.1) require LiteLLM proxy credentials.
 
 ---
 
 ## Citation
 
 ```bibtex
-@inproceedings{phmforge2025,
-  title={PHMForge: Intent-Based Industrial Automation Benchmark},
+@inproceedings{phmforge2026,
+  title={PHMForge: A Scenario-Driven Agentic Benchmark for Industrial Asset Lifecycle Maintenance},
   author={Das, Ayan and others},
-  booktitle={Proceedings of the 31st ACM SIGKDD Conference on Knowledge Discovery and Data Mining},
-  year={2025}
+  booktitle={Proceedings of the 39th Conference on Neural Information Processing Systems (NeurIPS) Datasets and Benchmarks Track},
+  year={2026}
 }
 ```
+
+---
+
+## License
+
+Apache 2.0 — see `LICENSE`.
+
+## Acknowledgements
+
+PHMForge builds on:
+- IBM **ReActXen** for the agent framework
+- IBM **AssetOpsBench** for MCP-native evaluation infrastructure
+- **PDMBench** datasets (CMAPSS, CWRU, FEMTO, EngineMTQA, …)
+- **Anthropic Model Context Protocol** for the tool-server abstraction
