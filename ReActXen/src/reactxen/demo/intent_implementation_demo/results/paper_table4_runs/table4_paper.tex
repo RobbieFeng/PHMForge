@@ -1,5 +1,5 @@
 \begin{table*}[t]
-\caption{Framework-and-model Pass@1 across PHM task categories on the PHMForge benchmark. \textbf{Pass@1}: mean success rate (n=25 scenarios; stratified subset preserving the 5 task categories). \textbf{Pass-all-3}: fraction of scenarios solved on \emph{all} three runs, reported only for the strongest configuration. ``---'' indicates Pass-all-3 not measured for non-winning configurations to bound compute cost.}
+\caption{Framework-and-model Pass@1 across PHM task categories on the PHMForge benchmark. \textbf{Pass@1}: mean success rate. ReAct and ReActXen rows are evaluated automatically on a stratified subset of n=25 scenarios (5 RUL + 5 Fault + 10 Health + 2 Cost + 3 Safety) preserving all 5 task categories. Claude Code rows ($^{*}$) are evaluated \emph{manually} on the full n=75 benchmark; Claude Code is an interactive CLI tool and is not API-callable from the automated harness. \textbf{Pass-all-3}: fraction of scenarios solved on \emph{all} three runs, reported only for the strongest automated configuration. ``---'' indicates Pass-all-3 not measured for non-winning configurations to bound compute cost.}
 \label{tab:framework_performance}
 \centering
 \small
@@ -24,6 +24,9 @@ ReActXen + Granite 4-H Small & 48.0\% & --- & 20.0\% & 0.0\% & 60.0\% & 100.0\% 
 ReActXen + Mistral Medium 2505 & 48.0\% & --- & 20.0\% & 40.0\% & 50.0\% & 100.0\% & 66.7\% \\
 ReActXen + Mistral Small 3.1 24B & 48.0\% & --- & 40.0\% & 40.0\% & 30.0\% & 100.0\% & 100.0\% \\
 ReActXen + Llama 3.3 70B & 9.1\% & --- & 0.0\% & 20.0\% & --- & 0.0\% & --- \\
+\midrule
+Claude Code + Opus 4.6$^{*}$ & 81.0\% & --- & 87.0\% & 80.0\% & 70.0\% & 100.0\% & 90.0\% \\
+Claude Code + Sonnet 4.5$^{*}$ & 65.0\% & --- & 73.0\% & 67.0\% & 57.0\% & 80.0\% & 70.0\% \\
 \bottomrule
 \end{tabular}
 \end{table*}

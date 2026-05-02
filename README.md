@@ -28,7 +28,45 @@ Full per-config breakdown (all 12 configs × 5 categories) lives in `ReActXen/sr
 
 ---
 
-## Quick Start (5 minutes)
+## Quick Start
+
+You have **two** options. Pick whichever is more convenient.
+
+### Option A: Docker (recommended — works on any platform with no local Python install)
+
+> **Prerequisite:** Docker Desktop (Mac/Windows) or `dockerd` (Linux) must be running.
+> On macOS: `open -a Docker`. On Linux: `sudo systemctl start docker`.
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/DeveloperMindset123/PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance.git
+cd PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance
+
+# 2. Build the image (one-time, ~3-5 min)
+docker build -t phmforge:latest .
+
+# 3. Verify the install (no credentials needed)
+docker compose up verify
+# Expected: "Results: <N>/<N> passed — ALL PASSED" (subset; --quick skips MCP stdio tests)
+
+# 4. Launch the dashboard at http://localhost:8501
+docker compose --profile dashboard up
+
+# 5. Run a 5-scenario benchmark (requires WatsonX credentials in .env)
+cat > .env <<EOF
+WATSONX_APIKEY=your_key_here
+WATSONX_URL=https://us-south.ml.cloud.ibm.com
+WATSONX_PROJECT_ID=your_project_id
+EOF
+docker compose --profile benchmark up
+```
+
+The Dockerfile builds on `python:3.10-slim-bookworm` and works on
+both `linux/amd64` and `linux/arm64` (Apple Silicon, Intel, ARM
+servers). The image runs as a non-root user and includes a
+healthcheck that verifies tool registration.
+
+### Option B: Native install (Linux / macOS / WSL)
 
 ```bash
 # 1. Clone and enter the demo directory
@@ -36,9 +74,9 @@ git clone https://github.com/DeveloperMindset123/PHMForge-A-Scenario-Driven-Agen
 cd PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance/ReActXen/src/reactxen/demo/intent_implementation_demo
 
 # 2. Create a Python 3.10+ venv and install dependencies
-uv venv .venv --python 3.10
-source .venv/bin/activate
-uv pip install -e .              # installs the demo package
+uv venv .venv --python 3.10                           # or: python3.10 -m venv .venv
+source .venv/bin/activate                              # Windows: .venv\Scripts\activate
+uv pip install -e .                                    # installs the demo package
 uv pip install "mcp[cli]>=1.26.0" "fastmcp>=2.14.5" "pydantic>=2.0"
 
 # 3. Configure WatsonX credentials (or any other supported provider)
@@ -46,15 +84,15 @@ export WATSONX_APIKEY=your_key
 export WATSONX_URL="https://us-south.ml.cloud.ibm.com"
 export WATSONX_PROJECT_ID=your_project_id
 
-# 4. Verify the MCP servers + tools work
-python mcp_servers/verify_servers.py    # 25 sanity tests should all pass
+# 4. Verify the MCP servers + tools work (25 sanity tests should all pass)
+.venv/bin/python mcp_servers/verify_servers.py
 
 # 5. Run a quick 5-scenario benchmark
-python benchmark_pass1.py --framework reactxen \
+.venv/bin/python benchmark_pass1.py --framework reactxen \
     --model "ibm/granite-4-h-small" --limit 5
 
 # 6. Launch the dashboard
-streamlit run frontend/app.py
+.venv/bin/streamlit run frontend/app.py
 ```
 
 ---
@@ -119,6 +157,32 @@ streamlit run frontend/app.py
 ## Step-by-step: Reproducing the Paper Numbers
 
 ### Step 1: Install
+
+#### Option A — Docker (most platform-independent)
+
+```bash
+git clone https://github.com/DeveloperMindset123/PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance.git
+cd PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance
+docker build -t phmforge:latest .
+```
+
+That's it. The image bundles Python 3.10, the venv, the demo package, and all dependencies (MCP, FastMCP, Pydantic, NumPy, Pandas, PyTorch, Streamlit, Plotly). Multi-architecture: `linux/amd64` and `linux/arm64` (Apple Silicon, ARM servers).
+
+To run any command inside the container:
+```bash
+docker run --rm phmforge:latest <command>
+# Or for interactive use:
+docker run --rm -it phmforge:latest bash
+```
+
+For commands that need to read/write the local results directory, mount it:
+```bash
+docker run --rm \
+    -v $(pwd)/ReActXen/src/reactxen/demo/intent_implementation_demo/results:/app/demo/results \
+    phmforge:latest <command>
+```
+
+#### Option B — Native (Linux / macOS / WSL)
 
 ```bash
 git clone https://github.com/DeveloperMindset123/PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance.git
@@ -233,9 +297,17 @@ Outputs in `results/paper_table4_runs/`:
 
 ### Step 8: View results in the dashboard
 
+**Native:**
 ```bash
 streamlit run frontend/app.py
 ```
+
+**Docker** (mounts your local results dir so the dashboard sees them):
+```bash
+docker compose --profile dashboard up
+```
+
+Then visit `http://localhost:8501`.
 
 Eight tabs:
 1. **Overview** — Category distribution, dataset treemap, tool frequency

@@ -1,0 +1,29 @@
+# Don't copy these into the build context
+.git
+.github
+.venv
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/node_modules
+.idea
+.vscode
+.devcontainer
+*.log
+*.tmp
+
+# Don't copy the Neurips_PHMForge folder (it's only on the user's Downloads)
+Neurips_PHMForge
+
+# Don't copy AssetOpsBench (it has its own .git)
+AssetOpsBench
+
+# Big data files we don't want in images
+ReActXen/src/data/**/*.csv
+ReActXen/src/data/**/*.parquet
+ReActXen/src/reactxen/demo/intent_implementation_demo/downloaded_datasets
+
+# Local artifacts
+.claude
+.swp
