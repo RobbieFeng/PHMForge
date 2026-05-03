@@ -13,6 +13,24 @@ The benchmark answers: *How well can LLM-powered agents perform real-world indus
 
 ---
 
+## 📋 Project handoff (April 2026)
+
+This repo is in a **submission-ready** state for NeurIPS 2026. Everything you need is in three places:
+
+| Where | What |
+|-------|------|
+| 📄 Paper | `Neurips_PHMForge/neurips_2026.tex` — sections §3 and §4 updated with real benchmark numbers |
+| 📦 Overleaf zip | `/Users/ayandas/Downloads/Neurips_PHMForge_FINAL.zip` (2.4 MB) — drag-and-drop into Overleaf |
+| 💻 Code | This repo — runnable via Docker (Option A) or native Python (Option B). Both verified working. |
+
+**Read these in order**:
+1. `Neurips_PHMForge/HOW_TO_UPLOAD_TO_OVERLEAF.md` — pick fresh upload vs. patch existing project
+2. `Neurips_PHMForge/PHMForge_LaTeX_Changes_Applied.md` — line-by-line table of paper edits
+3. `Neurips_PHMForge/PHMForge_Full_Changelist.md` — full project changelog (codebase + paper + methodology)
+4. This README — running the code
+
+---
+
 ## Headline Results (Pass@1 on 25-scenario stratified subset)
 
 | Framework + Model | Pass@1 | Pass-all-3 | Avg Steps | Avg Tokens |
@@ -77,7 +95,7 @@ cd PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-M
 uv venv .venv --python 3.10                           # or: python3.10 -m venv .venv
 source .venv/bin/activate                              # Windows: .venv\Scripts\activate
 uv pip install -e .                                    # installs the demo package
-uv pip install "mcp[cli]>=1.26.0" "fastmcp>=2.14.5" "pydantic>=2.0"
+uv pip install "mcp[cli]>=1.26.0" "fastmcp>=2.14.5" "pydantic>=2.0" streamlit plotly
 
 # 3. Configure WatsonX credentials (or any other supported provider)
 export WATSONX_APIKEY=your_key
@@ -193,12 +211,14 @@ uv venv .venv --python 3.10
 source .venv/bin/activate
 uv pip install -e .
 uv pip install "mcp[cli]>=1.26.0" "fastmcp>=2.14.5" "pydantic>=2.0"
+uv pip install streamlit plotly             # for the dashboard (Step 8)
 
 # Or with vanilla pip
 python3.10 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 pip install "mcp[cli]>=1.26.0" "fastmcp>=2.14.5" "pydantic>=2.0"
+pip install streamlit plotly                # for the dashboard (Step 8)
 ```
 
 ### Step 2: Datasets
