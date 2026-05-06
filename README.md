@@ -89,7 +89,7 @@ healthcheck that verifies tool registration.
 ```bash
 # 1. Clone and enter the demo directory
 git clone https://github.com/DeveloperMindset123/PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance.git
-cd PHMForge-A-Scenario-Driven-Agentic-Benchmark-for-Industrial-Asset-Lifecycle-Maintenance/ReActXen/src/reactxen/demo/intent_implementation_demo
+cd PHMForge/ReActXen/src/reactxen/demo/intent_implementation_demo
 
 # 2. Create a Python 3.10+ venv and install dependencies
 uv venv .venv --python 3.10                           # or: python3.10 -m venv .venv
