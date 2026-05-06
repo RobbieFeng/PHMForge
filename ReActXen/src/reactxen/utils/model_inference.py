@@ -23,6 +23,10 @@ os.environ["OPENAI_ORGANIZATION"] = os.getenv("OPENAI_ORGANIZATION", "")
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "")
 os.environ["WATSONX_APIKEY"] = os.getenv("WATSONX_APIKEY", "")
 os.environ["WATSONX_URL"] = os.getenv("WATSONX_URL", "")
+os.environ["TOKENROUTER_API_KEY"] = os.getenv("TOKENROUTER_API_KEY", "")
+os.environ["TOKENROUTER_BASE_URL"] = os.getenv(
+    "TOKENROUTER_BASE_URL", "https://api.tokenrouter.com/v1"
+)
 os.environ["AZURE_ENDPOINT"] = os.getenv("AZURE_ENDPOINT", "")
 os.environ["AZURE_APIKEY"] = os.getenv("AZURE_APIKEY", "")
 os.environ["API_VERSION"] = os.getenv("API_VERSION", "")
@@ -113,6 +117,88 @@ def maybe_trim_generated_text(response: dict, stop_sequences: list) -> str:
     return text.rstrip()
 
 
+def _resolve_model_id(model_id):
+    if isinstance(model_id, str) and model_id in modelset:
+        return model_id
+    if isinstance(model_id, str) and model_id.startswith("tokenrouter/"):
+        return model_id
+    try:
+        return modelset[model_id]
+    except (IndexError, TypeError):
+        raise ValueError(
+            "Invalid model_id. Must be between 0 and {}".format(len(modelset) - 1)
+        )
+
+
+def _use_tokenrouter(selected_model: str) -> bool:
+    provider = os.getenv("PHMFORGE_LLM_PROVIDER", "").lower()
+    if selected_model.startswith("tokenrouter/") or provider == "tokenrouter":
+        return True
+    return bool(
+        os.getenv("TOKENROUTER_API_KEY")
+        and not os.getenv("WATSONX_APIKEY")
+        and not selected_model.startswith("openai-azure")
+    )
+
+
+def tokenrouter_llm(
+    prompt,
+    model_id,
+    decoding_method="greedy",
+    temperature=0.0,
+    max_tokens=500,
+    n=1,
+    stop=None,
+    seed=None,
+    is_system_prompt=False,
+):
+    api_key = os.getenv("TOKENROUTER_API_KEY", "")
+    if not api_key:
+        raise ValueError("TOKENROUTER_API_KEY must be set for TokenRouter runs.")
+
+    base_url = os.getenv("TOKENROUTER_BASE_URL", "https://api.tokenrouter.com/v1")
+    selected_model = model_id.replace("tokenrouter/", "", 1)
+    selected_model = os.getenv("TOKENROUTER_MODEL", selected_model)
+
+    if isinstance(stop, str):
+        stop = [stop]
+
+    messages = get_chat_message(
+        prompt, is_system_prompt=is_system_prompt, replace_system_by_assistant=True
+    )
+    request_params = {
+        "model": selected_model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "n": n,
+    }
+    if stop:
+        request_params["stop"] = stop
+    if seed is not None:
+        request_params["seed"] = seed
+
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    response = client.chat.completions.create(**request_params)
+    generated_text = response.choices[0].message.content or ""
+    if stop:
+        for phrase in stop:
+            if phrase in generated_text:
+                generated_text = generated_text.split(phrase)[0]
+
+    usage = response.usage
+    prompt_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
+    completion_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
+
+    return {
+        "generated_text": generated_text.rstrip(),
+        "promptTokens": prompt_tokens,
+        "input_token_count": prompt_tokens,
+        "completionTokens": completion_tokens,
+        "generated_token_count": completion_tokens,
+    }
+
+
 def watsonx_llm(
     prompt,
     model_id=8,
@@ -125,15 +211,7 @@ def watsonx_llm(
     is_system_prompt=False,
 ):
     # Get the model name from modelset
-    if isinstance(model_id, str) and model_id in modelset:
-        selected_model = model_id
-    else:
-        try:
-            selected_model = modelset[model_id]
-        except IndexError:
-            raise ValueError(
-                "Invalid model_id. Must be between 0 and {}".format(len(modelset) - 1)
-            )
+    selected_model = _resolve_model_id(model_id)
 
     if selected_model.startswith("openai-azure"):
         return azure_openai_llm(
@@ -145,6 +223,19 @@ def watsonx_llm(
             n=n,
             stop=stop,
             seed=seed,
+        )
+
+    if _use_tokenrouter(selected_model):
+        return tokenrouter_llm(
+            prompt=prompt,
+            model_id=selected_model,
+            decoding_method=decoding_method,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            n=n,
+            stop=stop,
+            seed=seed,
+            is_system_prompt=is_system_prompt,
         )
 
     if isinstance(stop, str):
@@ -440,6 +531,14 @@ def count_tokens(
         selected_model = model_id
     else:
         selected_model = modelset[model_id]  # Ensure you have access to selected_model
+
+    if _use_tokenrouter(selected_model):
+        n = openai_count_tokens(input_text, selected_model)
+        if n is None:
+            if isinstance(input_text, list):
+                return max(1, sum(len(str(t)) for t in input_text) // 4)
+            return max(1, len(str(input_text)) // 4)
+        return n
 
     # Handle OpenAI model token counting
     if "openai" in selected_model:

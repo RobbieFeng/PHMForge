@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -56,9 +57,11 @@ def run_pass3(framework: str, model_id: int, output_path: Path,
     return compute_summary(results)
 
 
-def aggregate_pass3(framework: str, model_name: str) -> dict:
+def aggregate_pass3(framework: str, model_name: str, provider: str = "watsonx") -> dict:
     """After all 3 runs are done, aggregate into pass-all-3 metric."""
     safe_name = model_name.replace("/", "_").replace(":", "_")
+    if provider != "watsonx":
+        safe_name = f"{provider}__{safe_name}"
     paths = [
         _RESULTS_DIR / f"{framework}__{safe_name}.json",  # run 1
         _RESULTS_DIR / f"{framework}__{safe_name}_run2.json",
@@ -123,17 +126,29 @@ def main():
     p.add_argument("--run", type=int, choices=[2, 3], required=True,
                    help="Which extra run (2 or 3)")
     p.add_argument("--scenario_ids", required=True, help="Comma-separated task IDs")
+    p.add_argument("--provider", choices=["watsonx", "tokenrouter"], default="watsonx",
+                   help="LLM provider for model calls")
+    p.add_argument("--tokenrouter_model", type=str,
+                   help="Optional TokenRouter model id if it differs from --model")
     p.add_argument("--aggregate_only", action="store_true",
                    help="Skip running, just aggregate existing run JSONs")
     args = p.parse_args()
+
+    os.environ["PHMFORGE_LLM_PROVIDER"] = args.provider
+    if args.provider == "tokenrouter":
+        os.environ.setdefault("TOKENROUTER_BASE_URL", "https://api.tokenrouter.com/v1")
+        if args.tokenrouter_model:
+            os.environ["TOKENROUTER_MODEL"] = args.tokenrouter_model
 
     if args.model not in MODEL_NAME_TO_ID:
         raise SystemExit(f"Unknown model: {args.model}")
     model_id = MODEL_NAME_TO_ID[args.model]
     safe_name = args.model.replace("/", "_").replace(":", "_")
+    if args.provider != "watsonx":
+        safe_name = f"{args.provider}__{safe_name}"
 
     if args.aggregate_only:
-        summary = aggregate_pass3(args.framework, args.model)
+        summary = aggregate_pass3(args.framework, args.model, args.provider)
         print(json.dumps(summary, indent=2))
         return
 

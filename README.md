@@ -244,6 +244,10 @@ export WATSONX_PROJECT_ID=your_project_id
 export LITELLM_API_KEY=your_proxy_key
 export LITELLM_BASE_URL=https://your-proxy-url
 
+# Optional: TokenRouter / OpenAI-compatible provider
+export TOKENROUTER_API_KEY=your_tokenrouter_key
+export TOKENROUTER_BASE_URL=https://api.tokenrouter.com/v1
+
 # Optional: Brave Search for the web_search tool
 export BRAVE_API_KEY=your_brave_key
 ```
@@ -268,6 +272,12 @@ The sweep evaluates a `(framework × model)` matrix on a 25-scenario stratified 
 ```bash
 # Single config (one framework × one model)
 python benchmark_pass1.py --framework react \
+    --model "meta-llama/llama-4-maverick-17b-128e-instruct-fp8" \
+    --limit 25
+
+# Same ReAct + Llama 4 Maverick run through TokenRouter
+python benchmark_pass1.py --framework react \
+    --provider tokenrouter \
     --model "meta-llama/llama-4-maverick-17b-128e-instruct-fp8" \
     --limit 25
 
@@ -479,6 +489,9 @@ To add a new model on WatsonX, append it to `MODEL_NAME_TO_ID` in `benchmark_pas
 | `WATSONX_PROJECT_ID` | For WatsonX models | WatsonX project ID |
 | `LITELLM_API_KEY` | For frontier proxies | Proxy API key (Claude / GPT-5 / Gemini) |
 | `LITELLM_BASE_URL` | For frontier proxies | Proxy base URL |
+| `TOKENROUTER_API_KEY` | For TokenRouter models | TokenRouter API key |
+| `TOKENROUTER_BASE_URL` | For TokenRouter models | OpenAI-compatible endpoint; defaults to `https://api.tokenrouter.com/v1` |
+| `TOKENROUTER_MODEL` | No | Override the provider model ID sent to TokenRouter |
 | `OPENAI_API_KEY` | Optional | For direct OpenAI calls |
 | `BRAVE_API_KEY` | Optional | For `web_search` tool |
 | `MCP_TRANSPORT` | No (default `stdio`) | `stdio` or `sse` |

@@ -317,6 +317,7 @@ def run_one_scenario(scenario: dict, framework: str, model_id: int) -> dict:
         "classification_type": scenario["classification_type"],
         "dataset": scenario.get("dataset", ""),
         "framework": framework,
+        "provider": os.getenv("PHMFORGE_LLM_PROVIDER", "watsonx"),
         "model_id": model_id,
         "model_name": list(MODEL_NAME_TO_ID.keys())[
             list(MODEL_NAME_TO_ID.values()).index(model_id)
@@ -477,10 +478,20 @@ def main():
     p.add_argument("--model_id", type=int, help="model id from modelset")
     p.add_argument("--scenario_ids", type=str, help="comma-separated task IDs")
     p.add_argument("--limit", type=int, default=None)
+    p.add_argument("--provider", choices=["watsonx", "tokenrouter"], default="watsonx",
+                   help="LLM provider for model calls")
+    p.add_argument("--tokenrouter_model", type=str,
+                   help="Optional TokenRouter model id if it differs from --model")
     p.add_argument("--output_dir", type=str,
                    default=str(_DEMO / "results" / "paper_table4_runs"))
     p.add_argument("--no_resume", action="store_true")
     args = p.parse_args()
+
+    os.environ["PHMFORGE_LLM_PROVIDER"] = args.provider
+    if args.provider == "tokenrouter":
+        os.environ.setdefault("TOKENROUTER_BASE_URL", "https://api.tokenrouter.com/v1")
+        if args.tokenrouter_model:
+            os.environ["TOKENROUTER_MODEL"] = args.tokenrouter_model
 
     # Resolve model_id
     if args.model_id is not None:
@@ -497,6 +508,8 @@ def main():
         list(MODEL_NAME_TO_ID.values()).index(model_id)
     ] if model_id in MODEL_NAME_TO_ID.values() else f"id_{model_id}"
     safe_name = model_name.replace("/", "_").replace(":", "_")
+    if args.provider != "watsonx":
+        safe_name = f"{args.provider}__{safe_name}"
 
     output_path = Path(args.output_dir) / f"{args.framework}__{safe_name}.json"
     scenario_ids = args.scenario_ids.split(",") if args.scenario_ids else None

@@ -177,6 +177,8 @@ cp credentials.json.template credentials.json
 export WATSONX_APIKEY=your_key
 export WATSONX_PROJECT_ID=your_project
 export WATSONX_URL=https://us-south.ml.cloud.ibm.com/
+export TOKENROUTER_API_KEY=your_tokenrouter_key
+export TOKENROUTER_BASE_URL=https://api.tokenrouter.com/v1
 
 # Run single-agent benchmark (all 75 scenarios)
 python single_agent_implementation/run.py
@@ -322,6 +324,9 @@ To add a new agent framework to the benchmark:
 | `WATSONX_APIKEY` | For WatsonX models | IBM WatsonX API key |
 | `WATSONX_URL` | For WatsonX models | WatsonX endpoint URL |
 | `WATSONX_PROJECT_ID` | For WatsonX models | WatsonX project ID |
+| `TOKENROUTER_API_KEY` | For TokenRouter models | TokenRouter API key |
+| `TOKENROUTER_BASE_URL` | For TokenRouter models | OpenAI-compatible endpoint |
+| `TOKENROUTER_MODEL` | No | Override the provider model ID sent to TokenRouter |
 | `OPENAI_API_KEY` | For GPT models | OpenAI API key |
 | `HF_API_KEY` | For HF models | HuggingFace API token |
 | `BRAVE_API_KEY` | Optional | Brave Search API key (web search tool) |
