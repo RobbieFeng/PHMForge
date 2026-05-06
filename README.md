@@ -10,7 +10,7 @@
 PHMForge is a living benchmark for evaluating **agentic AI frameworks** on **industrial predictive maintenance (PHM)** tasks. It provides 75 expert-curated scenarios across 5 task categories, executed against an MCP-native tool catalog of 22 domain-specific tools, with reproducible Pass@1 / Pass-all-3 evaluation.
 
 The benchmark answers: *How well can LLM-powered agents perform real-world industrial automation tasks when given a domain-specific tool catalog?*
- 
+
 ---
 
 ## 📋 Project handoff (April 2026)
